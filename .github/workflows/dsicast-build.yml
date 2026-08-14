@@ -1,4 +1,4 @@
-name: DSiCast Experimental Build
+name: DSiCast In-Game Unlimited EXPERIMENTAL
 
 on:
   push:
@@ -10,29 +10,89 @@ jobs:
     container: devkitpro/devkitarm:20241104
 
     steps:
-      - name: Checkout
+      - name: Checkout DSiCast experiment files
         uses: actions/checkout@v4
 
-      - name: Get nds-bootstrap v2.16.0
+      - name: Install host build tools
+        run: |
+          apt-get update
+          apt-get install -y gcc p7zip-full python3
+
+      - name: Fetch exact nds-bootstrap v2.16.0
         run: |
           git clone https://github.com/DS-Homebrew/nds-bootstrap.git source
           cd source
           git checkout 8630be2bb5a861ea1eef2819a9ac9014927367b3
           git submodule update --init --recursive
 
-      - name: Install build tools
+      - name: Fetch historical dswifi worker stack
         run: |
-          apt-get update
-          apt-get install -y gcc p7zip-full
+          git clone --branch v0.4.2 --depth 1 https://github.com/devkitPro/dswifi.git dswifi
+          # v0.4.2 contains the ARM7 hardware service + ARM9 sgIP socket stack.
+          # Explicitly include sgIP in the ARM9 library.
+          sed -i '/CFLAGS.*-DARM9/a CFLAGS += -DWIFI_USE_TCP_SGIP' dswifi/arm9/Makefile
+          make -C dswifi include/dswifi_version.h
+          make -C dswifi release
+
+      - name: Build DSiCast resident workers
+        run: |
+          bash dsicast-exp/build_workers.sh "$GITHUB_WORKSPACE/dswifi"
+          cp dsicast-exp/build/dsicast_arm9.bin source/retail/nitrofiles/dsicast_arm9.bin
+          cp dsicast-exp/build/dsicast_arm7.bin source/retail/nitrofiles/dsicast_arm7.bin
+
+      - name: Patch nds-bootstrap for in-game continuous stream
+        run: |
+          python3 tools/patch_ndsbootstrap.py source
+          git -C source diff --check
+          git -C source diff --stat
+
+      - name: Build experimental retail nightly
+        run: |
           gcc source/lzss.c -o /usr/local/bin/lzss
-
-      - name: Build baseline
-        run: |
           cd source
-          make package-nightly
+          make -C retail nightly
 
-      - name: Upload build
+      - name: Prepare hardware-test artifact
+        run: |
+          mkdir -p artifact
+          cp source/retail/bin/nds-bootstrap-nightly.nds \
+             artifact/nds-bootstrap-nightly-DSiCast-Unlimited-EXPERIMENTAL.nds
+          cp dsicast-exp/build/dsicast_arm9.map artifact/
+          cp dsicast-exp/build/dsicast_arm7.map artifact/
+          cat > artifact/READ-ME-FIRST.txt <<'TXT'
+          DSiCast In-Game Unlimited EXPERIMENTAL
+
+          Target for this first build:
+          - real DSi / DSi XL
+          - standard Nintendo DS title such as Mario Kart DS
+          - TWiLight Menu++ configured to use Nightly nds-bootstrap
+          - DSiCast Receiver already open on the PC
+
+          Install:
+          1. BACK UP SD:/_nds/nds-bootstrap-nightly.nds
+          2. Rename this file to nds-bootstrap-nightly.nds
+          3. Put it at SD:/_nds/nds-bootstrap-nightly.nds
+          4. Launch Mario Kart DS using Nightly.
+          5. In game press L + R + SELECT once.
+          6. Wait several seconds for saved-WFC association and Receiver discovery.
+          7. Accept/connect the detected DSi in Receiver if needed.
+          8. L + R + SELECT toggles requested streaming OFF/ON.
+             L + R + START requests emergency stream OFF.
+
+          IMPORTANT:
+          - NO software FPS target/cap is used. Receiver preferred_fps is ignored.
+          - Frames are captured continuously as soon as the previous RAW frame has
+            left the UDP queue. Real FPS is limited only by display/capture/CPU/Wi-Fi.
+          - First experiment sends 128x96 RGB555 keyframes to reduce bandwidth;
+            this is a resolution choice, NOT an FPS cap.
+          - Experimental Wi-Fi ownership may freeze some games. Restore the backup
+            nightly if anything goes wrong. No NAND/Unlaunch/firmware writes occur.
+          TXT
+          sha256sum artifact/nds-bootstrap-nightly-DSiCast-Unlimited-EXPERIMENTAL.nds \
+            > artifact/SHA256.txt
+
+      - name: Upload test build
         uses: actions/upload-artifact@v4
         with:
-          name: DSiCast-build-test
-          path: source/bin/
+          name: DSiCast-InGame-Unlimited-EXPERIMENTAL
+          path: artifact/
