@@ -35,6 +35,9 @@ jobs:
           make -C dswifi release
 
       - name: Build DSiCast resident workers
+        env:
+          LIBNDS: /opt/devkitpro/libnds
+          DEVKITARM: /opt/devkitpro/devkitARM
         run: |
           bash dsicast-exp/build_workers.sh "$GITHUB_WORKSPACE/dswifi"
           cp dsicast-exp/build/dsicast_arm9.bin source/retail/nitrofiles/dsicast_arm9.bin
