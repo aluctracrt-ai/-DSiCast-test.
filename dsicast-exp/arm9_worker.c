@@ -5,7 +5,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <dswifi9.h>
 
@@ -17,6 +16,7 @@
 #endif
 
 extern int closesocket(int socket);
+extern int ioctl(int socket, long cmd, void *arg);
 
 #define WIFI_INIT_64K_INTERNAL 0x1000u
 #define VRAM_CR_PTR ((volatile uint8_t *)0x04000240)
