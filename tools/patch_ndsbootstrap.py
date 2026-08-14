@@ -113,7 +113,7 @@ write(p, s)
 p, s = read('retail/arm9/source/conf_sd.cpp')
 if 'loadDsicastResidentFile' not in s:
     helper_anchor = 'void s2RamAccess(bool open) {'
-    helper = r'''
+    helper = '''
 static bool loadDsicastResidentFile(const char* path, u32 dst, u32 capacity) {
 \tFILE* fp = fopen(path, "rb");
 \tif (!fp) return false;
@@ -135,7 +135,7 @@ static bool loadDsicastResidentFile(const char* path, u32 dst, u32 capacity) {
     s = replace_once(s, helper_anchor, helper + helper_anchor, 'loader helper')
 
 call_anchor = '''\n\t\t\t\t, (u8*)CARDENGINEI_ARM9_BUFFERED_LOCATION);\n\t\t\t}\n\n\t\t\tbool found = (access(pageFilePath.c_str(), F_OK) == 0);\n'''
-call = r'''
+call = '''
 
 #ifdef DSICAST_INGAME
 \t\t\t/* First hardware target: standard NTR game on DSi/3DS-class hardware.
